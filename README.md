@@ -168,10 +168,77 @@ class Message:
         self.reactions[emoji].append(user_id)
 ```
 
+## Web Interface (Flask + WebSocket)
+
+A modern web-based chat interface is included with real-time WebSocket support.
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+```
+
+### Running the Server
+
+```bash
+python server.py
+```
+
+Then open your browser to `http://localhost:5000`
+
+### Features
+
+- Beautiful, responsive UI
+- Real-time message delivery via WebSocket
+- Channel management (create, join, leave)
+- User presence notifications
+- Message history per channel
+- Status indicator for connection
+
+### How It Works
+
+1. **Login**: Enter your username to connect
+2. **Create/Join Channels**: Use the "New Channel" button or select from the list
+3. **Chat**: Type messages in real-time with other users in the channel
+4. **Leave**: Click "Leave" to unsubscribe from a channel
+
+### Architecture
+
+```
+index.html (WebSocket Client)
+         ↓ Socket.IO
+Flask Server (server.py)
+         ↓
+MessagingSystem (messaging_system.py)
+         ↓
+Channels + Message History
+```
+
+### API Endpoints
+
+**REST API:**
+- `GET /api/channels` - List all channels with stats
+- `POST /api/channels` - Create a new channel
+- `GET /api/channels/<name>/history` - Get message history
+- `DELETE /api/channels/<name>` - Delete a channel
+
+**WebSocket Events:**
+- `register_user` - Register username
+- `join_channel` - Join a channel
+- `leave_channel` - Leave a channel
+- `send_message` - Send a message
+- `receive_message` - Receive a message (broadcasted)
+- `get_channels` - Request channel list
+- `channel_history` - Receive message history
+
 ## Requirements
 
 - Python 3.7+
-- No external dependencies (uses only standard library)
+- Flask (for web interface)
+- Flask-SocketIO (for WebSocket support)
+- Modern web browser (for UI)
+
+See `requirements.txt` for exact versions.
 
 ## License
 
