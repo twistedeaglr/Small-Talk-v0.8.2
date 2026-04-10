@@ -250,31 +250,96 @@ UserManager (user_manager.py) + MessagingSystem (messaging_system.py)
 User Accounts + Channels + Message History
 ```
 
-### Authentication API Endpoints
+### API Endpoints
 
-**REST API:**
+**Authentication Endpoints:**
 - `POST /api/auth/register` - Register a new user (username, password)
 - `POST /api/auth/login` - Authenticate user (username, password)
+
+**User & Profile Endpoints:**
+- `GET /api/users/search?q=query` - Search users by username
+- `GET /api/users/<username>/profile` - Get user profile
+- `PUT /api/users/<username>/profile` - Update profile (bio, avatar_color)
+
+**Friends Endpoints:**
+- `GET /api/friends/<username>` - Get list of friends
+- `GET /api/friends/<username>/requests` - Get incoming friend requests
+- `POST /api/friends/request` - Send friend request (from_user, to_user)
+- `POST /api/friends/accept` - Accept friend request (from_user, to_user)
+- `POST /api/friends/reject` - Reject friend request (from_user, to_user)
+- `POST /api/friends/remove` - Remove friend (username, friend)
+
+**Channel Endpoints:**
 - `GET /api/channels` - List all channels with stats
-- `POST /api/channels` - Create a new channel
+- `POST /api/channels` - Create a new channel (name)
 - `GET /api/channels/<name>/history` - Get message history
 - `DELETE /api/channels/<name>` - Delete a channel
 
 **WebSocket Events:**
-- `register_user` - Register authenticated username for WebSocket
-- `join_channel` - Join a channel
-- `leave_channel` - Leave a channel
-- `send_message` - Send a message
-- `receive_message` - Receive a message (broadcasted)
+- `register_user` - Register authenticated user (username)
+- `join_channel` - Join a channel (channel)
+- `leave_channel` - Leave a channel (channel)
+- `send_message` - Send channel message (channel, content)
+- `receive_message` - Receive channel message (broadcasted)
 - `get_channels` - Request channel list
 - `channel_history` - Receive message history
+- `open_dm` - Open DM conversation (user)
+- `close_dm` - Close DM conversation (user)
+- `send_dm` - Send direct message (recipient, content)
+- `receive_dm` - Receive direct message (broadcasted)
+- `get_conversations` - Request list of conversations
+- `conversations_list` - Receive conversation list
+
+## Usage Examples
+
+### Web Interface
+1. Login or create account
+2. Use navigation buttons to switch between:
+   - **Channels**: Group conversations
+   - **Friends**: Manage friends and send requests
+   - **Direct Messages**: 1-on-1 chats
+   - **Profile**: View and edit your profile
+3. Search for users and add as friends
+4. Chat in real-time with channels or direct messages
+
+### Default Admin Account
+```
+Username: elihunt
+Password: admin123
+Role: Admin
+```
+The elihunt account is automatically registered with admin privileges.
+
+### Python API Usage
+```python
+import asyncio
+from user_manager import UserManager
+from messaging_system import MessagingSystem
+from direct_messaging import DirectMessagingSystem
+
+async def main():
+    # User management
+    um = UserManager()
+    um.register("alice", "password123")
+    um.send_friend_request("alice", "bob")
+    
+    # Group messaging
+    ms = MessagingSystem()
+    await ms.send_message("alice", "general", "Hello!")
+    
+    # Direct messaging
+    dms = DirectMessagingSystem()
+    await dms.send_message("alice", "bob", "Hey Bob!")
+
+asyncio.run(main())
+```
 
 ## Requirements
 
 - Python 3.7+
-- Flask (for web interface)
-- Flask-SocketIO (for WebSocket support)
-- Modern web browser (for UI)
+- Flask 2.3.0+
+- Flask-SocketIO 5.3.0+
+- Modern web browser
 
 See `requirements.txt` for exact versions.
 
