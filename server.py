@@ -7,6 +7,7 @@ from flask import Flask, send_from_directory, jsonify, request
 from flask_socketio import SocketIO, emit, join_room, leave_room, rooms
 from messaging_system import MessagingSystem, Message
 from user_manager import UserManager
+from direct_messaging import DirectMessagingSystem
 import asyncio
 from threading import Thread
 import os
@@ -18,6 +19,11 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Global messaging system and user manager
 messaging_system = MessagingSystem()
 user_manager = UserManager()
+dm_system = DirectMessagingSystem()
+
+# Set up default admin user
+user_manager.register("elihunt", "admin123")
+user_manager.set_role("elihunt", "admin")
 
 # Track connected users
 connected_users = {}
@@ -52,9 +58,134 @@ def login():
     success, message = user_manager.login(username, password)
     
     if success:
-        return jsonify({'success': True, 'message': message, 'username': username}), 200
+        user = user_manager.get_user(username)
+        return jsonify({
+            'success': True, 
+            'message': message, 
+            'username': username,
+            'role': user.role
+        }), 200
     else:
         return jsonify({'success': False, 'message': message}), 401
+
+
+# ---- User Profile & Search Endpoints ----
+
+@app.route('/api/users/search', methods=['GET'])
+def search_users():
+    """Search for users by username."""
+    query = request.args.get('q', '').strip()
+    
+    if not query or len(query) < 1:
+        return jsonify([]), 200
+    
+    results = user_manager.search_users(query)
+    return jsonify(results), 200
+
+
+@app.route('/api/users/<username>/profile', methods=['GET'])
+def get_user_profile(username):
+    """Get a user's profile."""
+    profile = user_manager.get_profile(username)
+    
+    if not profile:
+        return jsonify({'error': 'User not found'}), 404
+    
+    return jsonify(profile), 200
+
+
+@app.route('/api/users/<username>/profile', methods=['PUT'])
+def update_user_profile(username):
+    """Update user profile."""
+    data = request.json
+    bio = data.get('bio')
+    avatar_color = data.get('avatar_color')
+    
+    success, message = user_manager.update_profile(username, bio, avatar_color)
+    
+    if success:
+        profile = user_manager.get_profile(username)
+        return jsonify({'success': True, 'profile': profile}), 200
+    else:
+        return jsonify({'success': False, 'message': message}), 400
+
+
+# ---- Friends Endpoints ----
+
+@app.route('/api/friends/<username>', methods=['GET'])
+def get_friends(username):
+    """Get list of friends."""
+    friends = user_manager.get_friends(username)
+    friend_profiles = [user_manager.get_profile(f) for f in friends]
+    return jsonify(friend_profiles), 200
+
+
+@app.route('/api/friends/<username>/requests', methods=['GET'])
+def get_friend_requests(username):
+    """Get incoming friend requests."""
+    requests = user_manager.get_friend_requests(username)
+    request_profiles = [user_manager.get_profile(r) for r in requests]
+    return jsonify(request_profiles), 200
+
+
+@app.route('/api/friends/request', methods=['POST'])
+def send_friend_request_endpoint():
+    """Send a friend request."""
+    data = request.json
+    from_user = data.get('from_user')
+    to_user = data.get('to_user')
+    
+    success, message = user_manager.send_friend_request(from_user, to_user)
+    
+    if success:
+        return jsonify({'success': True, 'message': message}), 200
+    else:
+        return jsonify({'success': False, 'message': message}), 400
+
+
+@app.route('/api/friends/accept', methods=['POST'])
+def accept_friend_request_endpoint():
+    """Accept a friend request."""
+    data = request.json
+    from_user = data.get('from_user')
+    to_user = data.get('to_user')
+    
+    success, message = user_manager.accept_friend_request(from_user, to_user)
+    
+    if success:
+        return jsonify({'success': True, 'message': message}), 200
+    else:
+        return jsonify({'success': False, 'message': message}), 400
+
+
+@app.route('/api/friends/reject', methods=['POST'])
+def reject_friend_request_endpoint():
+    """Reject a friend request."""
+    data = request.json
+    from_user = data.get('from_user')
+    to_user = data.get('to_user')
+    
+    success, message = user_manager.reject_friend_request(from_user, to_user)
+    
+    if success:
+        return jsonify({'success': True, 'message': message}), 200
+    else:
+        return jsonify({'success': False, 'message': message}), 400
+
+
+@app.route('/api/friends/remove', methods=['POST'])
+def remove_friend_endpoint():
+    """Remove a friend."""
+    data = request.json
+    username = data.get('username')
+    friend = data.get('friend')
+    
+    success, message = user_manager.remove_friend(username, friend)
+    
+    if success:
+        return jsonify({'success': True, 'message': message}), 200
+    else:
+        return jsonify({'success': False, 'message': message}), 400
 
 
 # ---- Channel Endpoints ----
@@ -282,6 +413,115 @@ def handle_get_channels():
         channel_data.append(stats)
     
     emit('channels_list', {'channels': channel_data})
+
+
+# ============ Direct Messaging Events ============
+
+@socketio.on('open_dm')
+def handle_open_dm(data):
+    """Open a direct message conversation."""
+    sid = request.sid
+    
+    if sid not in connected_users:
+        emit('error', {'message': 'User not registered'})
+        return
+    
+    current_user = connected_users[sid]['username']
+    other_user = data.get('user')
+    
+    if not other_user:
+        emit('error', {'message': 'User not specified'})
+        return
+    
+    # Join a unique room for this conversation
+    room = f"dm_{min(current_user, other_user)}_{max(current_user, other_user)}"
+    join_room(room)
+    
+    # Subscribe to DM thread
+    async def on_dm(msg):
+        socketio.emit('receive_dm', {
+            'sender': msg.sender,
+            'recipient': msg.recipient,
+            'content': msg.content,
+            'timestamp': msg.timestamp.isoformat()
+        }, room=room)
+    
+    dm_system.subscribe_to_thread(current_user, other_user, sid, on_dm)
+    
+    # Send message history
+    history = dm_system.get_thread_history(current_user, other_user)
+    messages = [
+        {
+            'sender': msg.sender,
+            'recipient': msg.recipient,
+            'content': msg.content,
+            'timestamp': msg.timestamp.isoformat()
+        }
+        for msg in history
+    ]
+    
+    emit('dm_history', {
+        'user': other_user,
+        'messages': messages
+    })
+
+
+@socketio.on('close_dm')
+def handle_close_dm(data):
+    """Close a direct message conversation."""
+    sid = request.sid
+    
+    if sid not in connected_users:
+        return
+    
+    current_user = connected_users[sid]['username']
+    other_user = data.get('user')
+    
+    room = f"dm_{min(current_user, other_user)}_{max(current_user, other_user)}"
+    leave_room(room)
+    
+    dm_system.unsubscribe_from_thread(current_user, other_user, sid)
+
+
+@socketio.on('send_dm')
+def handle_send_dm(data):
+    """Send a direct message."""
+    sid = request.sid
+    
+    if sid not in connected_users:
+        emit('error', {'message': 'User not registered'})
+        return
+    
+    current_user = connected_users[sid]['username']
+    recipient = data.get('recipient')
+    content = data.get('content')
+    
+    if not recipient or not content:
+        emit('error', {'message': 'Recipient and content required'})
+        return
+    
+    # Send DM
+    async def send():
+        await dm_system.send_message(current_user, recipient, content)
+    
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(send())
+    loop.close()
+
+
+@socketio.on('get_conversations')
+def handle_get_conversations():
+    """Get list of active conversations."""
+    sid = request.sid
+    
+    if sid not in connected_users:
+        emit('error', {'message': 'User not registered'})
+        return
+    
+    username = connected_users[sid]['username']
+    conversations = dm_system.get_conversations(username)
+    
+    emit('conversations_list', {'conversations': conversations})
 
 
 # ============ Utility Routes ============
