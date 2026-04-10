@@ -325,8 +325,27 @@
             <div class="login-form">
                 <h1>💬 Chat</h1>
                 <p>Simple Real-Time Messaging</p>
-                <input type="text" id="usernameInput" placeholder="Enter your username" autofocus>
-                <button onclick="login()">Join Chat</button>
+                
+                <!-- Login Form -->
+                <div id="loginForm">
+                    <h2 style="font-size: 1.5rem; margin-bottom: 20px;">Login</h2>
+                    <input type="text" id="loginUsername" placeholder="Username" autofocus>
+                    <input type="password" id="loginPassword" placeholder="Password">
+                    <button onclick="handleLogin()" style="margin-bottom: 15px;">Login</button>
+                    <p style="font-size: 0.95rem;">Don't have an account? <a href="#" onclick="switchToSignup(event)" style="color: white; text-decoration: underline;">Sign up</a></p>
+                </div>
+                
+                <!-- Signup Form -->
+                <div id="signupForm" style="display: none;">
+                    <h2 style="font-size: 1.5rem; margin-bottom: 20px;">Create Account</h2>
+                    <input type="text" id="signupUsername" placeholder="Choose a username">
+                    <input type="password" id="signupPassword" placeholder="Password (min 6 chars)">
+                    <input type="password" id="signupPassword2" placeholder="Confirm password">
+                    <button onclick="handleSignup()" style="margin-bottom: 15px;">Sign Up</button>
+                    <p style="font-size: 0.95rem;">Already have an account? <a href="#" onclick="switchToLogin(event)" style="color: white; text-decoration: underline;">Login</a></p>
+                </div>
+                
+                <div id="authError" style="color: #ffcccc; margin-top: 15px; display: none;"></div>
             </div>
         </div>
 
@@ -342,6 +361,7 @@
                 <div class="user-info">
                     <p><span class="status-indicator connected" id="statusIndicator"></span>Status: <span id="statusText">Connected</span></p>
                     <p>User: <span id="currentUser"></span></p>
+                    <button onclick="logout()" style="width: 100%; margin-top: 10px; padding: 6px; background: #ff6b6b; color: white; border: none; border-radius: 4px; cursor: pointer;">Logout</button>
                 </div>
             </div>
 
@@ -431,13 +451,91 @@
         });
 
         // UI Functions
-        function login() {
-            const username = document.getElementById('usernameInput').value.trim();
-            if (!username) {
-                alert('Please enter a username');
+        function switchToSignup(e) {
+            e.preventDefault();
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'block';
+            document.getElementById('signupUsername').focus();
+            clearAuthError();
+        }
+
+        function switchToLogin(e) {
+            e.preventDefault();
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('loginUsername').focus();
+            clearAuthError();
+        }
+
+        function clearAuthError() {
+            const errorEl = document.getElementById('authError');
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+        }
+
+        function showAuthError(message) {
+            const errorEl = document.getElementById('authError');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+
+        function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showAuthError('Please enter username and password');
                 return;
             }
-            socket.emit('register_user', { username });
+
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    clearAuthError();
+                    socket.emit('register_user', { username });
+                } else {
+                    showAuthError(data.message || 'Login failed');
+                }
+            })
+            .catch(err => showAuthError('Login error: ' + err));
+        }
+
+        function handleSignup() {
+            const username = document.getElementById('signupUsername').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            const password2 = document.getElementById('signupPassword2').value;
+
+            if (!username || !password || !password2) {
+                showAuthError('Please fill in all fields');
+                return;
+            }
+
+            if (password !== password2) {
+                showAuthError('Passwords do not match');
+                return;
+            }
+
+            fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    clearAuthError();
+                    // Auto-login after signup
+                    socket.emit('register_user', { username });
+                } else {
+                    showAuthError(data.message || 'Signup failed');
+                }
+            })
+            .catch(err => showAuthError('Signup error: ' + err));
         }
 
         function showMainContent() {
@@ -490,6 +588,28 @@
                 selectChannel(null);
                 loadChannels();
             }
+        }
+
+        function logout() {
+            currentUser = null;
+            currentChannel = null;
+            messages = {};
+            socket.disconnect();
+            
+            // Reset UI
+            document.getElementById('mainContent').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            clearAuthError();
+            
+            // Reconnect socket for next login
+            setTimeout(() => {
+                socket = io();
+                setupSocketListeners();
+            }, 500);
         }
 
         function displayMessages(channel) {
@@ -583,9 +703,14 @@
                     sendMessage();
                 }
             });
-            document.getElementById('usernameInput')?.addEventListener('keypress', (e) => {
+            document.getElementById('loginPassword')?.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
-                    login();
+                    handleLogin();
+                }
+            });
+            document.getElementById('signupPassword2')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleSignup();
                 }
             });
         });

@@ -1,14 +1,16 @@
 # Simple Messaging System
 
-A lightweight, real-time chat system with channel support written in Python.
+A lightweight, real-time chat system with channel support and user authentication written in Python.
 
 ## Features
 
+- **User Authentication**: Secure username and password registration and login
 - **Multiple Channels**: Create and manage separate channels for different conversations
-- **Real-time Delivery**: Messages are broadcast instantly to all subscribers
+- **Real-time Delivery**: Messages are broadcast instantly to all subscribers via WebSocket
 - **Message History**: Access recent message history for each channel
+- **Web Interface**: Beautiful, responsive HTML/CSS/JavaScript UI
 - **Async Support**: Built with asyncio for non-blocking operations
-- **Simple API**: Easy to integrate into other applications
+- **CLI Client**: Interactive command-line interface for advanced users
 
 ## Components
 
@@ -18,7 +20,29 @@ Core messaging engine with:
 - `Channel` class: Manages subscribers and message history for a channel
 - `MessagingSystem` class: Main system managing all channels and message routing
 
-### 2. `client.py`
+### 2. `user_manager.py`
+User authentication and account management:
+- `User` class: Stores user account information
+- `UserManager` class: Handles registration, login, password hashing, and user management
+- Password hashing using SHA-256
+- Support for password changes and account deletion
+
+### 3. `server.py`
+Flask server with WebSocket support:
+- REST API endpoints for authentication (/api/auth/login, /api/auth/register)
+- WebSocket events for real-time messaging (register_user, send_message, etc.)
+- Channel management endpoints
+- Message history retrieval
+
+### 4. `index.html`
+Modern web interface with:
+- User registration and login screens
+- Real-time chat interface
+- Channel management (create, join, leave)
+- User presence notifications
+- Responsive design with gradient styling
+
+### 5. `client.py`
 Interactive CLI client with commands:
 - `/join <channel>` - Subscribe to a channel
 - `/leave <channel>` - Unsubscribe from a channel
@@ -27,7 +51,7 @@ Interactive CLI client with commands:
 - `/help` - Show available commands
 - `/quit` - Exit the application
 
-### 3. `demo.py`
+### 6. `demo.py`
 Demonstration script showing how to use the system programmatically
 
 ## Quick Start
@@ -170,7 +194,7 @@ class Message:
 
 ## Web Interface (Flask + WebSocket)
 
-A modern web-based chat interface is included with real-time WebSocket support.
+A modern web-based chat interface with user authentication and real-time WebSocket support.
 
 ### Installation
 
@@ -188,42 +212,56 @@ Then open your browser to `http://localhost:5000`
 
 ### Features
 
-- Beautiful, responsive UI
+- **User Authentication**: Secure login and registration system
+- Beautiful, responsive UI with gradient styling
 - Real-time message delivery via WebSocket
 - Channel management (create, join, leave)
 - User presence notifications
 - Message history per channel
 - Status indicator for connection
+- Logout functionality
 
-### How It Works
+### Getting Started
 
-1. **Login**: Enter your username to connect
-2. **Create/Join Channels**: Use the "New Channel" button or select from the list
-3. **Chat**: Type messages in real-time with other users in the channel
-4. **Leave**: Click "Leave" to unsubscribe from a channel
+1. **Register/Login**: 
+   - Create a new account with username and password (min 6 characters)
+   - Or login with existing credentials
+   
+2. **Create/Join Channels**: 
+   - Use the "New Channel" button to create a channel
+   - Or select from the list of existing channels
+   
+3. **Chat**: 
+   - Type messages in real-time with other users in the channel
+   - Messages are instantly delivered to all subscribers
+   
+4. **Manage Account**: 
+   - Click "Logout" to securely disconnect and return to login screen
 
 ### Architecture
 
 ```
-index.html (WebSocket Client)
-         ↓ Socket.IO
+HTML/JS Client (index.html)
+      ↓ REST API + WebSocket (Socket.IO)
 Flask Server (server.py)
-         ↓
-MessagingSystem (messaging_system.py)
-         ↓
-Channels + Message History
+      ↓
+UserManager (user_manager.py) + MessagingSystem (messaging_system.py)
+      ↓
+User Accounts + Channels + Message History
 ```
 
-### API Endpoints
+### Authentication API Endpoints
 
 **REST API:**
+- `POST /api/auth/register` - Register a new user (username, password)
+- `POST /api/auth/login` - Authenticate user (username, password)
 - `GET /api/channels` - List all channels with stats
 - `POST /api/channels` - Create a new channel
 - `GET /api/channels/<name>/history` - Get message history
 - `DELETE /api/channels/<name>` - Delete a channel
 
 **WebSocket Events:**
-- `register_user` - Register username
+- `register_user` - Register authenticated username for WebSocket
 - `join_channel` - Join a channel
 - `leave_channel` - Leave a channel
 - `send_message` - Send a message

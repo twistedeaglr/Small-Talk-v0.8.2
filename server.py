@@ -6,6 +6,7 @@ Handles real-time message delivery and channel management.
 from flask import Flask, send_from_directory, jsonify, request
 from flask_socketio import SocketIO, emit, join_room, leave_room, rooms
 from messaging_system import MessagingSystem, Message
+from user_manager import UserManager
 import asyncio
 from threading import Thread
 import os
@@ -14,14 +15,49 @@ app = Flask(__name__, static_folder=os.path.dirname(os.path.abspath(__file__)))
 app.config['SECRET_KEY'] = 'your-secret-key-change-this'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Global messaging system
+# Global messaging system and user manager
 messaging_system = MessagingSystem()
+user_manager = UserManager()
 
 # Track connected users
 connected_users = {}
 
 
 # ============ HTTP Routes ============
+
+# ---- Authentication Endpoints ----
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    """Register a new user."""
+    data = request.json
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    success, message = user_manager.register(username, password)
+    
+    if success:
+        return jsonify({'success': True, 'message': message}), 201
+    else:
+        return jsonify({'success': False, 'message': message}), 400
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Authenticate a user."""
+    data = request.json
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    success, message = user_manager.login(username, password)
+    
+    if success:
+        return jsonify({'success': True, 'message': message, 'username': username}), 200
+    else:
+        return jsonify({'success': False, 'message': message}), 401
+
+
+# ---- Channel Endpoints ----
 
 @app.route('/api/channels', methods=['GET'])
 def get_channels():
@@ -106,9 +142,14 @@ def handle_disconnect():
 
 @socketio.on('register_user')
 def handle_register_user(data):
-    """Register a user with their username."""
+    """Register an authenticated user for WebSocket communication."""
     sid = request.sid
-    username = data.get('username', f'User_{sid[:8]}')
+    username = data.get('username')
+    
+    # Verify user exists (they authenticated)
+    if not username or not user_manager.user_exists(username):
+        emit('error', {'message': 'Invalid username or not authenticated'})
+        return
     
     connected_users[sid] = {
         'username': username,
