@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Widget</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .chat-widget {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: white;
+        }
+
+        .widget-login {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .widget-login.hidden {
+            display: none;
+        }
+
+        .login-box {
+            background: white;
+            color: #333;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 350px;
+            width: 100%;
+        }
+
+        .login-box h2 {
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .login-box button:hover {
+            background: #5568d3;
+        }
+
+        .toggle-form {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .toggle-form:hover {
+            text-decoration: underline;
+        }
+
+        .error {
+            color: #ff6b6b;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .widget-chat {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            background: white;
+        }
+
+        .widget-chat.hidden {
+            display: none;
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            background: #667eea;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .chat-header h3 {
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .channels-selector {
+            padding: 15px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .channel-btn {
+            padding: 8px 15px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .channel-btn:hover {
+            background: #e8e8e8;
+        }
+
+        .channel-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.own {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 12px;
+            background: #f0f0f0;
+            word-wrap: break-word;
+            font-size: 0.95rem;
+        }
+
+        .message.own .message-bubble {
+            background: #667eea;
+            color: white;
+        }
+
+        .message-sender {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .message.own .message-sender {
+            text-align: right;
+            color: #667eea;
+        }
+
+        .input-area {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .input-area button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .input-area button:hover {
+            background: #5568d3;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .powered-by {
+            text-align: center;
+            padding: 10px;
+            font-size: 0.8rem;
+            color: #999;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-widget">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="widget-login">
+            <div class="login-box">
+                <div id="loginForm">
+                    <h2>Chat</h2>
+                    <div id="loginError" class="error"></div>
+                    <input type="text" id="loginUsername" placeholder="Username" autofocus>
+                    <input type="password" id="loginPassword" placeholder="Password">
+                    <button onclick="handleLogin()">Login</button>
+                    <p>Don't have an account? <a href="#" onclick="showSignup(event)" class="toggle-form">Sign up</a></p>
+                </div>
+
+                <div id="signupForm" style="display: none;">
+                    <h2>Create Account</h2>
+                    <div id="signupError" class="error"></div>
+                    <input type="text" id="signupUsername" placeholder="Username">
+                    <input type="password" id="signupPassword" placeholder="Password (min 6)">
+                    <input type="password" id="signupPassword2" placeholder="Confirm Password">
+                    <button onclick="handleSignup()">Sign Up</button>
+                    <p>Already have an account? <a href="#" onclick="showLogin(event)" class="toggle-form">Login</a></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chatScreen" class="widget-chat hidden">
+            <div class="chat-header">
+                <h3>💬 Chat</h3>
+                <button class="logout-btn" onclick="handleLogout()">Logout</button>
+            </div>
+
+            <div class="channels-selector">
+                <input type="text" id="channelInput" placeholder="Type channel name..." style="flex: 1; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px;">
+                <button onclick="createChannel()" style="padding: 8px 15px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">Create</button>
+            </div>
+
+            <div id="channelsContainer" class="channels-selector"></div>
+
+            <div id="messagesArea" class="messages-area">
+                <div class="empty-state">Select a channel to start chatting</div>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type a message..." disabled>
+                <button onclick="sendMessage()" disabled>Send</button>
+            </div>
+
+            <div class="powered-by">Powered by Chat System</div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SERVER_URL = window.location.origin; // Auto-detect server URL
+        const socket = io(SERVER_URL);
+
+        let currentUser = null;
+        let currentChannel = null;
+        const channelMessages = {};
+
+        // ============ Authentication ============
+
+        function showLogin(e) {
+            e.preventDefault();
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('signupForm').style.display = 'none';
+            clearError('login');
+        }
+
+        function showSignup(e) {
+            e.preventDefault();
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('signupForm').style.display = 'block';
+            clearError('signup');
+        }
+
+        function clearError(type) {
+            document.getElementById(type + 'Error').style.display = 'none';
+        }
+
+        function showError(type, message) {
+            const el = document.getElementById(type + 'Error');
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+
+        function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showError('login', 'Please enter credentials');
+                return;
+            }
+
+            fetch(SERVER_URL + '/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    currentUser = username;
+                    socket.emit('register_user', { username });
+                    showChatScreen();
+                } else {
+                    showError('login', data.message);
+                }
+            })
+            .catch(err => showError('login', 'Login failed'));
+        }
+
+        function handleSignup() {
+            const username = document.getElementById('signupUsername').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            const password2 = document.getElementById('signupPassword2').value;
+
+            if (!username || !password || !password2) {
+                showError('signup', 'Fill all fields');
+                return;
+            }
+
+            if (password !== password2) {
+                showError('signup', 'Passwords do not match');
+                return;
+            }
+
+            fetch(SERVER_URL + '/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    currentUser = username;
+                    socket.emit('register_user', { username });
+                    showChatScreen();
+                } else {
+                    showError('signup', data.message);
+                }
+            })
+            .catch(err => showError('signup', 'Signup failed'));
+        }
+
+        function showChatScreen() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('chatScreen').classList.remove('hidden');
+            loadChannels();
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            currentChannel = null;
+            socket.disconnect();
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('chatScreen').classList.add('hidden');
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            setTimeout(() => {
+                socket = io(SERVER_URL);
+            }, 500);
+        }
+
+        // ============ Channels ============
+
+        function loadChannels() {
+            fetch(SERVER_URL + '/api/channels')
+                .then(r => r.json())
+                .then(channels => {
+                    const container = document.getElementById('channelsContainer');
+                    container.innerHTML = '';
+                    channels.forEach(ch => {
+                        const btn = document.createElement('button');
+                        btn.className = 'channel-btn';
+                        btn.textContent = '#' + ch.name;
+                        btn.onclick = () => selectChannel(ch.name);
+                        container.appendChild(btn);
+                    });
+                });
+        }
+
+        function createChannel() {
+            const name = document.getElementById('channelInput').value.trim();
+            if (!name) return;
+
+            fetch(SERVER_URL + '/api/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            })
+            .then(() => {
+                document.getElementById('channelInput').value = '';
+                loadChannels();
+                selectChannel(name);
+            })
+            .catch(err => alert('Error creating channel'));
+        }
+
+        function selectChannel(name) {
+            currentChannel = name;
+            
+            // Update active button
+            document.querySelectorAll('.channel-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === '#' + name) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Enable input
+            document.getElementById('messageInput').disabled = false;
+            document.querySelector('.input-area button').disabled = false;
+
+            // Load history
+            fetch(SERVER_URL + '/api/channels/' + name + '/history')
+                .then(r => r.json())
+                .then(messages => {
+                    channelMessages[name] = messages;
+                    displayMessages();
+                });
+
+            // Subscribe to channel
+            socket.emit('join_channel', { channel: name });
+        }
+
+        function displayMessages() {
+            const area = document.getElementById('messagesArea');
+            const messages = channelMessages[currentChannel] || [];
+
+            area.innerHTML = '';
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = 'message' + (msg.sender === currentUser ? ' own' : '');
+                div.innerHTML = `
+                    <div>
+                        <div class="message-sender">${msg.sender}</div>
+                        <div class="message-bubble">${escapeHtml(msg.content)}</div>
+                    </div>
+                `;
+                area.appendChild(div);
+            });
+
+            area.scrollTop = area.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+
+            if (!content || !currentChannel) return;
+
+            socket.emit('send_message', {
+                channel: currentChannel,
+                content: content
+            });
+
+            input.value = '';
+        }
+
+        // ============ Socket Events ============
+
+        socket.on('receive_message', (data) => {
+            if (!channelMessages[data.channel]) {
+                channelMessages[data.channel] = [];
+            }
+            channelMessages[data.channel].push(data);
+            if (currentChannel === data.channel) {
+                displayMessages();
+            }
+        });
+
+        // ============ Utilities ============
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.getElementById('messageInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        document.getElementById('loginPassword')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleLogin();
+        });
+    </script>
+</body>
+</html>
