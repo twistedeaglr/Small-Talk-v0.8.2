@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat System</title>
+    <title>🗣️Small Talk🗣️</title>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         * {
@@ -104,7 +104,8 @@
 
         /* Sidebar Navigation */
         .nav-sidebar {
-            width: 250px;
+            width: 300px;
+            min-height: 100vh;
             background: #2c3e50;
             color: white;
             display: flex;
@@ -131,6 +132,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            cursor: pointer;
         }
 
         .admin-badge {
@@ -143,19 +145,21 @@
 
         .nav-buttons {
             display: flex;
-            gap: 5px;
+            flex-direction: column;
+            gap: 8px;
             margin-bottom: 10px;
         }
 
         .nav-buttons button {
-            flex: 1;
-            padding: 8px;
+            width: 100%;
+            padding: 10px 12px;
             background: #34495e;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
+            text-align: left;
             transition: background 0.3s;
         }
 
@@ -207,6 +211,14 @@
             background: #c0392b;
         }
 
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 15px 20px;
+            color: rgb(104, 106, 143);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
         /* Content Area */
         .content-area {
             flex: 1;
@@ -230,6 +242,12 @@
             background: #f9f9f9;
         }
 
+        .channels-header {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
         .panel-body {
             flex: 1;
             overflow-y: auto;
@@ -237,17 +255,97 @@
         }
 
         /* Channels Panel */
-        .channel-item {
-            padding: 10px;
-            margin: 5px 0;
-            background: #f5f5f5;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background 0.3s;
+        .channels-bar {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 10px 0;
+            margin-bottom: 20px;
+            width: 100%;
         }
 
-        .channel-item:hover {
-            background: #e8e8e8;
+        .channels-bar::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .channels-bar::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 999px;
+        }
+
+        .channel-card {
+            flex: 0 0 auto;
+            width: 100px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .channel-card.active .channel-avatar,
+        .channel-card:hover .channel-avatar {
+            background: #5568d3;
+        }
+
+        .channel-avatar {
+            width: 70px;
+            height: 70px;
+            margin: 0 auto 10px;
+            background: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            color: white;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .channel-card.add-card .channel-avatar {
+            background: #51cf66;
+        }
+
+        .channel-card.add-card .channel-name {
+            color: #51cf66;
+            font-weight: 600;
+        }
+
+        .channel-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .channel-view {
+            margin-top: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .channel-view.active {
+            display: block;
+        }
+
+        .channel-header {
+            background: #f4f7fb;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .channel-messages {
+            max-height: 520px;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            padding: 15px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: white;
         }
 
         /* Friends Panel */
@@ -395,6 +493,7 @@
             display: flex;
             gap: 10px;
             animation: slideIn 0.3s ease-out;
+            max-width: 100%;
         }
 
         @keyframes slideIn {
@@ -413,11 +512,14 @@
         }
 
         .message-bubble {
-            max-width: 60%;
+            max-width: 45%;
+            min-width: 80px;
             padding: 12px 15px;
             border-radius: 12px;
             background: #f0f0f0;
             word-wrap: break-word;
+            overflow-wrap: anywhere;
+            white-space: normal;
         }
 
         .message.own .message-bubble {
@@ -534,8 +636,8 @@
     <!-- Login Screen -->
     <div id="loginScreen" class="login-screen">
         <div class="login-form">
-            <h1>💬 Chat</h1>
-            <p>Real-Time Messaging System</p>
+            <h1>Small Talk</h1>
+            <p>Chat with your friends: anytime, anywhere!</p>
             
             <div id="loginForm">
                 <h2 style="font-size: 1.3rem; margin-bottom: 20px; text-align: left;">Login</h2>
@@ -563,39 +665,45 @@
         <!-- Navigation Sidebar -->
         <div class="nav-sidebar">
             <div class="nav-header">
-                <h2 style="color: #667eea;">💬 Chat</h2>
-                <div class="user-badge">
+                <h2 style="color: #ffffff;">🗣️Small Talk🗣️</h2>
+                <div class="user-badge" onclick="switchPanel('profile')" title="View profile">
                     <span id="navUsername"></span>
                     <span id="adminBadge" class="admin-badge" style="display: none;">ADMIN</span>
                 </div>
                 <div class="nav-buttons">
-                    <button class="nav-btn active" onclick="switchPanel('channels')">Channels</button>
-                    <button class="nav-btn" onclick="switchPanel('friends')">Friends</button>
-                    <button class="nav-btn" onclick="switchPanel('messages')">DMs</button>
-                    <button class="nav-btn" onclick="switchPanel('profile')">Profile</button>
+                    <button class="nav-btn active" onclick="switchPanel('channels', this)">Groups</button>
+                    <button class="nav-btn" onclick="switchPanel('friends', this)">Friends</button>
+                    <button class="nav-btn" onclick="switchPanel('messages', this)">Messages</button>
                 </div>
+                <h3 style="text-decoration: underline; color: #ffffff">v0.8.2</h3>
+                <p style="font-size: 14px; color: #ffffff">-Changed the way groups appear, so there's more room to view the chat</p>
+                <p style="font-size: 14px; color: #ffffff">-Fixed a bug where it looks like you sent multiple messages of the same thing at once</p>
+                <p style="font-size: 14px; color: #ffffff">-Revised the sidebar to show the profile, messages, friends, and groups tab in a row</p>
+                <p style="font-size: 14px; color: #ffffff">-Removed the profile tab to utilize the username tab on the top</p>
             </div>
             
             <div id="navList" class="nav-list"></div>
+            <p2 class="sidebar-footer" style="font-size: 10px; color: #625e88">Keep in mind, none of this is private. Don't share anything sensitive, or anything you wouldn't want to explain to the dean.</p2>
             
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
 
         <!-- Content Panels -->
         <div class="content-area">
-            <!-- Channels Panel -->
+            <!-- Groups Panel -->
             <div id="channelsPanel" class="panel active">
-                <div class="panel-header">
-                    <h3>Channels</h3>
-                    <button class="btn-small btn-primary" style="margin-top: 10px; width: auto;" onclick="promptCreateChannel()">+ New Channel</button>
+                <div class="panel-header channels-header">
+                    <h3>Groups</h3>
+                    <div class="channels-bar" id="channelsList"></div>
                 </div>
                 <div class="panel-body">
-                    <div id="channelsList" class="channel-item">
-                        <div class="empty-state">No channels. Create one to get started!</div>
+                    <div id="channelView" class="channel-view">
+                        <div class="channel-header">#<span id="currentChannelTitle"></span></div>
+                        <div id="channelMessages" class="channel-messages"></div>
                     </div>
                 </div>
                 <div class="input-area">
-                    <input type="text" id="channelMessageInput" placeholder="Type message..." style="display: none;">
+                    <input type="text" id="channelMessageInput" placeholder="Say what's up..." style="display: none;">
                     <button class="btn-primary" onclick="sendChannelMessage()" style="display: none;">Send</button>
                 </div>
             </div>
@@ -624,7 +732,7 @@
             <!-- Direct Messages Panel -->
             <div id="messagesPanel" class="panel">
                 <div class="panel-header">
-                    <h3 id="dmHeader">Direct Messages</h3>
+                    <h3 id="dmHeader">Messages</h3>
                 </div>
                 <div class="panel-body" id="dmBody">
                     <div id="conversationsList" class="conversation-list"></div>
@@ -675,6 +783,7 @@
                             <div class="stat-value" id="joinDate">-</div>
                             <div class="stat-label">Joined</div>
                         </div>
+                        <h>More coming soon to the profile page.</h>
                     </div>
                 </div>
             </div>
@@ -802,14 +911,32 @@
             loadConversations();
         });
 
+        socket.on('channel_history', (data) => {
+            if (data.channel !== currentChannel) return;
+            const container = document.getElementById('channelMessages');
+            container.innerHTML = '';
+            data.messages.forEach(msg => addChannelMessage(msg));
+            container.scrollTop = container.scrollHeight;
+        });
+
+        socket.on('receive_message', (data) => {
+            if (data.channel !== currentChannel) return;
+            addChannelMessage(data);
+        });
+
         // ============ Panel Switching ============
 
-        function switchPanel(panel) {
+        function switchPanel(panel, button) {
             currentPanel = panel;
             
             // Update nav buttons
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+            if (button) {
+                button.classList.add('active');
+            } else {
+                const panelButton = document.querySelector(`.nav-btn[onclick="switchPanel('${panel}', this)"]`);
+                if (panelButton) panelButton.classList.add('active');
+            }
             
             // Hide all panels
             document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -830,37 +957,109 @@
                 .then(channels => {
                     const list = document.getElementById('channelsList');
                     list.innerHTML = '';
-                    
+
+                    const addCard = document.createElement('div');
+                    addCard.className = 'channel-card add-card';
+                    addCard.innerHTML = '<div class="channel-avatar">+</div><div class="channel-name">Create Group</div>';
+                    addCard.onclick = promptCreateChannel;
+                    list.appendChild(addCard);
+
+                    if (channels.length === 0) {
+                        const empty = document.createElement('div');
+                        empty.className = 'channel-card';
+                        empty.innerHTML = '<div class="channel-avatar">?</div><div class="channel-name">No groups yet</div>';
+                        list.appendChild(empty);
+                        return;
+                    }
+
                     channels.forEach(ch => {
+                        const firstLetter = ch.name.charAt(0).toUpperCase() || '?';
                         const div = document.createElement('div');
-                        div.className = 'channel-item';
-                        div.innerHTML = `<strong>#${ch.name}</strong><br><small>${ch.message_count} messages, ${ch.subscribers} members</small>`;
+                        div.className = 'channel-card';
+                        div.dataset.channel = ch.name;
+                        div.innerHTML = `
+                            <div class="channel-avatar">${escapeHtml(firstLetter)}</div>
+                            <div class="channel-name" title="${escapeHtml(ch.name)}">${escapeHtml(ch.name)}</div>
+                        `;
                         div.onclick = () => selectChannel(ch.name);
                         list.appendChild(div);
                     });
+
+                    updateChannelSelection();
                 });
         }
 
         function promptCreateChannel() {
-            const name = prompt('Channel name:');
-            if (name) {
-                fetch('/api/channels', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
-                })
-                .then(() => loadChannels())
-                .catch(err => alert('Error'));
+            let name = prompt('Channel name (max 15 characters):');
+            if (!name) return;
+            name = name.trim();
+            if (!name) return;
+
+            if (name.length > 15) {
+                alert('Channel names are limited to 15 characters. Your name will be truncated.');
+                name = name.slice(0, 15).trim();
             }
+
+            if (!name) return;
+
+            fetch('/api/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            })
+            .then(() => loadChannels())
+            .catch(err => alert('Error'));
         }
 
         function selectChannel(name) {
+            if (!currentUser) {
+                alert('Please login before joining a group.');
+                return;
+            }
+
+            if (currentChannel === name) {
+                return;
+            }
+
+            if (currentChannel) {
+                socket.emit('leave_channel', { channel: currentChannel });
+            }
+
             currentChannel = name;
-            console.log('Joined channel:', name);
+            document.getElementById('currentChannelTitle').textContent = name;
+            document.getElementById('channelView').classList.add('active');
+            document.getElementById('channelMessageInput').style.display = 'block';
+            document.querySelector('.input-area button').style.display = 'block';
+            document.getElementById('channelMessages').innerHTML = '';
+            updateChannelSelection();
+            socket.emit('join_channel', { channel: name });
+        }
+
+        function updateChannelSelection() {
+            document.querySelectorAll('#channelsList .channel-card').forEach(item => {
+                item.classList.toggle('active', item.dataset.channel === currentChannel);
+            });
+        }
+
+        function addChannelMessage(msg) {
+            const container = document.getElementById('channelMessages');
+            const div = document.createElement('div');
+            div.className = 'message' + (msg.sender === currentUser ? ' own' : '');
+            div.innerHTML = `<div class="message-bubble"><strong>${escapeHtml(msg.sender)}</strong>: ${escapeHtml(msg.content)}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         }
 
         function sendChannelMessage() {
-            // Implementation for channel messages
+            const input = document.getElementById('channelMessageInput');
+            const content = input.value.trim();
+
+            if (!content || !currentChannel) {
+                return;
+            }
+
+            socket.emit('send_message', { channel: currentChannel, content });
+            input.value = '';
         }
 
         // ============ Friends ============
@@ -1049,6 +1248,7 @@
             data.messages.forEach(msg => {
                 addDMMessage(msg);
             });
+            container.scrollTop = container.scrollHeight;
         });
 
         socket.on('receive_dm', (data) => {

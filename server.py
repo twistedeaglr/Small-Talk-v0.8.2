@@ -267,6 +267,10 @@ def handle_disconnect():
     
     if user_info:
         username = user_info['username']
+        # Clean up any active channel subscriptions for this socket.
+        for channel_name in list(user_info['channels']):
+            messaging_system.unsubscribe_from_channel(sid, channel_name)
+
         print(f"Client disconnected: {sid} ({username})")
         del connected_users[sid]
 

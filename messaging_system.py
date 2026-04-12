@@ -4,8 +4,10 @@ Simple real-time messaging system with channel support.
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Callable
 import asyncio
+import json
 
 
 @dataclass
@@ -64,9 +66,44 @@ class Channel:
 class MessagingSystem:
     """Main messaging system managing channels and real-time delivery."""
     
-    def __init__(self):
+    def __init__(self, log_file: str = 'data/messages.log'):
         self.channels: Dict[str, Channel] = {}
+        self.log_file = Path(log_file)
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        if not self.log_file.exists():
+            self.log_file.write_text('', encoding='utf-8')
+        self._load_messages()
     
+    def _load_messages(self):
+        try:
+            with self.log_file.open('r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    timestamp = None
+                    if data.get('timestamp'):
+                        try:
+                            timestamp = datetime.fromisoformat(data['timestamp'])
+                        except ValueError:
+                            timestamp = None
+
+                    message = Message(
+                        sender=data.get('sender', ''),
+                        content=data.get('content', ''),
+                        channel=data.get('channel', ''),
+                        timestamp=timestamp
+                    )
+                    channel = self.get_channel(message.channel)
+                    channel.message_history.append(message)
+        except Exception as e:
+            print(f"Error loading message log: {e}")
+
     def create_channel(self, channel_name: str) -> Channel:
         """Create a new channel if it doesn't exist."""
         if channel_name not in self.channels:
@@ -105,8 +142,19 @@ class MessagingSystem:
         """Send a message to a channel."""
         channel = self.get_channel(channel_name)
         message = Message(sender=sender, content=content, channel=channel_name)
+        self._log_message(message)
         await channel.broadcast(message)
         return message
+
+    def _log_message(self, message: Message):
+        entry = {
+            'timestamp': message.timestamp.isoformat(),
+            'sender': message.sender,
+            'channel': message.channel,
+            'content': message.content
+        }
+        with self.log_file.open('a', encoding='utf-8') as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + '\n')
     
     def subscribe_to_channel(self, user_id: str, channel_name: str, callback: Callable):
         """Subscribe a user to a channel."""

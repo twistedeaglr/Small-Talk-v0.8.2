@@ -5,7 +5,9 @@ User management and authentication system.
 from dataclasses import dataclass
 from typing import Dict, Optional
 from datetime import datetime
+from pathlib import Path
 import hashlib
+import json
 
 
 @dataclass
@@ -32,14 +34,62 @@ class User:
 class UserManager:
     """Manages user accounts and authentication."""
     
-    def __init__(self):
+    def __init__(self, storage_file: str = 'data/users.json', log_file: str = 'data/user_activity.log'):
         self.users: Dict[str, User] = {}
+        self.storage_file = Path(storage_file)
+        self.log_file = Path(log_file)
+        self.storage_file.parent.mkdir(parents=True, exist_ok=True)
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        self._load_users()
     
     @staticmethod
     def hash_password(password: str) -> str:
         """Hash a password using SHA-256."""
         return hashlib.sha256(password.encode()).hexdigest()
     
+    def _load_users(self):
+        if not self.storage_file.exists():
+            self.storage_file.write_text('{}', encoding='utf-8')
+            return
+
+        try:
+            raw = self.storage_file.read_text(encoding='utf-8')
+            data = json.loads(raw) if raw.strip() else {}
+        except json.JSONDecodeError:
+            data = {}
+
+        for username, user_data in data.items():
+            self.users[username] = User(
+                username=username,
+                password_hash=user_data['password_hash'],
+                created_at=datetime.fromisoformat(user_data['created_at']) if user_data.get('created_at') else None,
+                bio=user_data.get('bio', ''),
+                avatar_color=user_data.get('avatar_color', '#667eea'),
+                friends=user_data.get('friends', []),
+                friend_requests=user_data.get('friend_requests', []),
+                role=user_data.get('role', 'user')
+            )
+
+    def _save_users(self):
+        data = {
+            username: {
+                'password_hash': user.password_hash,
+                'created_at': user.created_at.isoformat(),
+                'bio': user.bio,
+                'avatar_color': user.avatar_color,
+                'friends': user.friends,
+                'friend_requests': user.friend_requests,
+                'role': user.role
+            }
+            for username, user in self.users.items()
+        }
+        self.storage_file.write_text(json.dumps(data, indent=2), encoding='utf-8')
+
+    def _append_log(self, message: str):
+        timestamp = datetime.now().isoformat()
+        with self.log_file.open('a', encoding='utf-8') as f:
+            f.write(f"[{timestamp}] {message}\n")
+
     def register(self, username: str, password: str) -> tuple[bool, str]:
         """
         Register a new user.
@@ -62,6 +112,8 @@ class UserManager:
         # Create user
         password_hash = self.hash_password(password)
         self.users[username] = User(username=username, password_hash=password_hash)
+        self._save_users()
+        self._append_log(f"REGISTER username={username} password_hash={password_hash}")
         
         return True, "User registered successfully"
     
@@ -71,14 +123,17 @@ class UserManager:
         Returns: (success, message)
         """
         if username not in self.users:
+            self._append_log(f"LOGIN_ATTEMPT username={username} success=False")
             return False, "Invalid username or password"
         
         user = self.users[username]
         password_hash = self.hash_password(password)
         
         if user.password_hash != password_hash:
+            self._append_log(f"LOGIN_ATTEMPT username={username} success=False")
             return False, "Invalid username or password"
         
+        self._append_log(f"LOGIN_ATTEMPT username={username} success=True")
         return True, "Login successful"
     
     def user_exists(self, username: str) -> bool:
@@ -93,6 +148,8 @@ class UserManager:
         """Delete a user account."""
         if username in self.users:
             del self.users[username]
+            self._save_users()
+            self._append_log(f"DELETE_USER username={username}")
             return True
         return False
     
@@ -113,6 +170,8 @@ class UserManager:
         # Update password
         password_hash = self.hash_password(new_password)
         self.users[username].password_hash = password_hash
+        self._save_users()
+        self._append_log(f"PASSWORD_CHANGE username={username} password_hash={password_hash}")
         
         return True, "Password changed successfully"
     
@@ -140,6 +199,8 @@ class UserManager:
         # Add to recipient's incoming requests
         if from_user not in self.users[to_user].friend_requests:
             self.users[to_user].friend_requests.append(from_user)
+            self._save_users()
+            self._append_log(f"FRIEND_REQUEST from={from_user} to={to_user}")
         
         return True, f"Friend request sent to {to_user}"
     
@@ -163,6 +224,8 @@ class UserManager:
         
         # Remove the request
         self.users[to_user].friend_requests.remove(from_user)
+        self._save_users()
+        self._append_log(f"FRIEND_REQUEST_ACCEPT from={from_user} to={to_user}")
         
         return True, f"Friend request from {from_user} accepted"
     
@@ -172,6 +235,8 @@ class UserManager:
             return False, "No friend request from this user"
         
         self.users[to_user].friend_requests.remove(from_user)
+        self._save_users()
+        self._append_log(f"FRIEND_REQUEST_REJECT from={from_user} to={to_user}")
         return True, "Friend request rejected"
     
     def remove_friend(self, username: str, friend: str) -> tuple[bool, str]:
@@ -186,6 +251,8 @@ class UserManager:
         if username in self.users[friend].friends:
             self.users[friend].friends.remove(username)
         
+        self._save_users()
+        self._append_log(f"REMOVE_FRIEND username={username} friend={friend}")
         return True, f"Removed {friend} from friends"
     
     def get_friends(self, username: str) -> list:
@@ -229,6 +296,8 @@ class UserManager:
                 return False, "Invalid color format"
             user.avatar_color = avatar_color
         
+        self._save_users()
+        self._append_log(f"UPDATE_PROFILE username={username} bio={bio} avatar_color={avatar_color}")
         return True, "Profile updated"
     
     def get_profile(self, username: str) -> Optional[dict]:
@@ -268,6 +337,8 @@ class UserManager:
             return False, "Invalid role"
         
         self.users[username].role = role
+        self._save_users()
+        self._append_log(f"SET_ROLE username={username} role={role}")
         return True, f"Role set to {role}"
     
     def get_role(self, username: str) -> Optional[str]:
